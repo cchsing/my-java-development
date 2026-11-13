@@ -1,0 +1,33 @@
+# --- Stage 1: Build the application ---
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the pom.xml file to download dependencies first (improves caching)
+COPY pom.xml .
+
+# Download dependencies without building the source code
+RUN mvn dependency:go-offline -B
+
+# Copy the actual application source code
+COPY src ./src
+
+# Pack compile and package the code into a JAR file, skipping tests for speed
+RUN mvn clean package -DskipTests
+
+# --- Stage 2: Create the runtime image ---
+FROM eclipse-temurin:21-jre-alpine
+
+# Set a secure runtime working directory
+WORKDIR /app
+
+# Copy the compiled JAR file from the builder stage
+# Note: Replace 'your-app-name' with your actual artifactId from pom.xml
+COPY --from=builder /app/target/*-jar-with-dependencies.jar app.jar
+
+# Expose the application port (adjust if your app runs on a different port)
+EXPOSE 8080
+
+# Specify the execution command
+ENTRYPOINT ["java", "-jar", "app.jar"]
